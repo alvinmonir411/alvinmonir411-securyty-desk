@@ -57,13 +57,6 @@ export default function PublicHomePage() {
       buttonText: 'Apply for Admission',
       buttonLink: '/admissions',
     },
-    {
-      title: 'CHARACTER, LEADERSHIP\n& INTEGRITY.',
-      subtitle: 'Developing confident, responsible and ethical future leaders through academic and co-curricular guidance.',
-      imageUrl: '/786656880_1616644293215292_2836054805930890432_n.jpg',
-      buttonText: 'Visit Our Campus',
-      buttonLink: '/contact',
-    },
   ];
 
   // Queries

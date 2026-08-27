@@ -28,6 +28,8 @@ async function bootstrap() {
       'http://127.0.0.1:3001',
       /^http:\/\/localhost:\d+$/,
       /^http:\/\/127\.0\.0\.1:\d+$/,
+      /https:\/\/.*\.vercel\.app$/,
+      /https:\/\/.*\.onrender\.com$/,
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

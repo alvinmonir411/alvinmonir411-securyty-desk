@@ -218,8 +218,13 @@ export default function AdminHeroSlidesPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => deleteMutation.mutate(slide.id)}
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to delete this hero slide banner?')) {
+                          deleteMutation.mutate(slide.id);
+                        }
+                      }}
                       className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-8 px-2"
+                      title="Delete slide"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

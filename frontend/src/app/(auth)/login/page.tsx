@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { AlertCircle, Lock, Mail, ArrowRight, Eye, EyeOff, Shield, UserCheck } from 'lucide-react';
+import { AlertCircle, Lock, Mail, ArrowRight, Eye, EyeOff, Shield, KeyRound, Sparkles } from 'lucide-react';
 
 export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState('');
@@ -21,6 +21,7 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -47,9 +48,24 @@ export default function LoginPage() {
     }
   };
 
+  const handleDemoFill = (email: string, pass: string = 'Pass@123456') => {
+    setValue('email', email, { shouldValidate: true });
+    setValue('password', pass, { shouldValidate: true });
+    setErrorMessage('');
+  };
+
+  const demoAccounts = [
+    { label: 'Super Admin', email: 'admin@school.com', role: 'admin' },
+    { label: 'Principal', email: 'principal@nobleschool.edu.bd', role: 'admin' },
+    { label: 'Teacher', email: 'teacher@school.com', role: 'teacher' },
+    { label: 'Accountant', email: 'accountant@school.com', role: 'accountant' },
+    { label: 'Student', email: 'student@school.com', role: 'student' },
+    { label: 'Parent', email: 'parent@school.com', role: 'parent' },
+  ];
+
   return (
-    <Card className="border-border/60 shadow-xl">
-      <CardHeader className="space-y-1 text-center">
+    <Card className="border-border/60 shadow-xl max-w-md w-full mx-auto">
+      <CardHeader className="space-y-1 text-center pb-4">
         <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <Shield className="h-6 w-6" />
         </div>
@@ -110,11 +126,35 @@ export default function LoginPage() {
             {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
           </div>
 
-          <Button type="submit" disabled={isSubmitting} className="w-full" size="lg">
+          <Button type="submit" disabled={isSubmitting} className="w-full font-semibold" size="lg">
             {isSubmitting ? 'Authenticating...' : 'Sign In to Portal'}
             {!isSubmitting && <ArrowRight className="ml-2 h-4 w-4" />}
           </Button>
         </form>
+
+        {/* Quick Demo Login Credentials Chips */}
+        <div className="pt-3 border-t border-border/60 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+              <KeyRound className="h-3 w-3 text-primary" />
+              Demo / Quick Sign-In:
+            </p>
+            <span className="text-[10px] text-muted-foreground font-mono">Password: Pass@123456</span>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {demoAccounts.map((acc) => (
+              <button
+                key={acc.label}
+                type="button"
+                onClick={() => handleDemoFill(acc.email)}
+                className="px-2 py-1.5 rounded-lg border border-border/80 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 hover:text-primary text-[11px] font-medium text-left transition-all truncate"
+                title={`${acc.label}: ${acc.email}`}
+              >
+                ⚡ {acc.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

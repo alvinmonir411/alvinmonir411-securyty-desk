@@ -155,30 +155,38 @@ export class CMSService {
 
   // 1. Hero Slides
   async getHeroSlides() {
-    const slides = await this.prisma.heroSlider.findMany({
+    let slides = await this.prisma.heroSlider.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },
     });
 
     if (slides.length === 0) {
-      return [
-        {
-          id: 'slide-1',
-          title: 'Nurturing Intellect, Character & Leadership',
-          subtitle: 'Empowering students to achieve academic excellence and global citizenship.',
-          imageUrl: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=1600&auto=format&fit=crop',
-          buttonText: 'Online Admissions Open',
-          buttonLink: '/admission',
-        },
-        {
-          id: 'slide-2',
-          title: 'State-of-the-Art STEM & Research Labs',
-          subtitle: 'Fostering discovery through experimental physics, robotics, and biotechnology.',
-          imageUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?q=80&w=1600&auto=format&fit=crop',
+      // Auto-seed default 2 persistent slides
+      const slide1 = await this.prisma.heroSlider.create({
+        data: {
+          title: 'INSPIRING MINDS.\nBUILDING FUTURES.',
+          subtitle: 'A disciplined, modern and student-centered learning environment where knowledge, character and creativity grow together.',
+          imageUrl: '/787124177_2051232472934207_3472095284671851725_n.jpg',
           buttonText: 'Explore Academics',
           buttonLink: '/academics',
+          sortOrder: 1,
+          isActive: true,
         },
-      ];
+      });
+
+      const slide2 = await this.prisma.heroSlider.create({
+        data: {
+          title: 'EXCELLENCE IN\nNCTB EDUCATION.',
+          subtitle: 'Structured classroom learning, experienced educators, and complete guidance for secondary academic success.',
+          imageUrl: '/778985014_1018608747889352_6428572593389947367_n.jpg',
+          buttonText: 'Apply for Admission',
+          buttonLink: '/admissions',
+          sortOrder: 2,
+          isActive: true,
+        },
+      });
+
+      slides = [slide1, slide2];
     }
     return slides;
   }
@@ -189,38 +197,35 @@ export class CMSService {
         title: dto.title,
         subtitle: dto.subtitle,
         imageUrl: dto.imageUrl,
-        buttonText: dto.buttonText,
-        buttonLink: dto.buttonLink,
+        buttonText: dto.buttonText || 'Explore Academics',
+        buttonLink: dto.buttonLink || '/academics',
         isActive: true,
       },
     });
   }
 
   async updateHeroSlide(id: string, dto: Partial<CreateHeroSlideDto>) {
-    try {
-      return await this.prisma.heroSlider.update({
-        where: { id },
-        data: { ...dto },
-      });
-    } catch {
-      return this.prisma.heroSlider.create({
-        data: {
-          title: dto.title || 'Noble Residential High School',
-          subtitle: dto.subtitle,
-          imageUrl: dto.imageUrl || '/787124177_2051232472934207_3472095284671851725_n.jpg',
-          buttonText: dto.buttonText,
-          buttonLink: dto.buttonLink,
-          isActive: true,
-        },
-      });
+    const existing = await this.prisma.heroSlider.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Hero slide with ID '${id}' not found`);
     }
+
+    return this.prisma.heroSlider.update({
+      where: { id },
+      data: {
+        ...(dto.title !== undefined && { title: dto.title }),
+        ...(dto.subtitle !== undefined && { subtitle: dto.subtitle }),
+        ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
+        ...(dto.buttonText !== undefined && { buttonText: dto.buttonText }),
+        ...(dto.buttonLink !== undefined && { buttonLink: dto.buttonLink }),
+      },
+    });
   }
 
   async deleteHeroSlide(id: string) {
-    try {
+    const existing = await this.prisma.heroSlider.findUnique({ where: { id } });
+    if (existing) {
       await this.prisma.heroSlider.delete({ where: { id } });
-    } catch {
-      // Gracefully return success even for fallback slide IDs
     }
     return { success: true, message: 'Hero slide deleted successfully' };
   }
