@@ -1,0 +1,28 @@
+{
+  "name": "school-management-system-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-grade School Management System - Modular Monolith with Next.js 16+ & NestJS",
+  "scripts": {
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build:backend": "npm run build --prefix backend",
+    "build:frontend": "npm run build --prefix frontend",
+    "typecheck:backend": "npm run typecheck --prefix backend",
+    "typecheck:frontend": "npm run typecheck --prefix frontend",
+    "typecheck": "npm run typecheck:backend && npm run typecheck:frontend",
+    "prisma:generate": "npm run prisma:generate --prefix backend",
+    "prisma:migrate": "npm run prisma:migrate --prefix backend",
+    "prisma:seed": "npm run prisma:seed --prefix backend"
+  },
+  "keywords": [
+    "school-management",
+    "nestjs",
+    "nextjs",
+    "prisma",
+    "neon",
+    "typescript"
+  ],
+  "author": "",
+  "license": "UNLICENSED"
+}
