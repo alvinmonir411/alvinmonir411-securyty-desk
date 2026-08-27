@@ -189,7 +189,7 @@ export class AdmissionsService {
         const normalizedMethod = dto.paymentMethod?.toUpperCase();
         if (normalizedMethod === 'NAGAD') selectedMethod = PaymentMethod.NAGAD;
         else if (normalizedMethod === 'CASH') selectedMethod = PaymentMethod.CASH;
-        else if (normalizedMethod === 'ROCKET') selectedMethod = PaymentMethod.ROCKET;
+        else if (normalizedMethod === 'ROCKET') selectedMethod = ((PaymentMethod as any).ROCKET ?? 'ROCKET') as PaymentMethod;
         else if (normalizedMethod === 'BKASH') selectedMethod = PaymentMethod.BKASH;
         else if (normalizedMethod && normalizedMethod in PaymentMethod) {
           selectedMethod = PaymentMethod[normalizedMethod as keyof typeof PaymentMethod];

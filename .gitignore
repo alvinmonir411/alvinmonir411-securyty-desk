@@ -44,3 +44,7 @@ Thumbs.db
 # Uploads
 uploads/
 */uploads/
+
+# Vercel
+.vercel/
+*/.vercel/
