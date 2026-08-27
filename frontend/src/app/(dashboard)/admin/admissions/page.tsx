@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { PageHeader } from '@/components/shared/page-header';
@@ -17,7 +18,6 @@ import { RouteGuard } from '@/components/auth/route-guard';
 import {
   UserPlus,
   Search,
-  Filter,
   CheckCircle2,
   XCircle,
   Clock,
@@ -27,12 +27,17 @@ import {
   Phone,
   Mail,
   User,
-  ShieldAlert,
+  ShieldCheck,
   Printer,
   Sparkles,
   Download,
   AlertTriangle,
   CreditCard,
+  History,
+  GraduationCap,
+  ArrowRight,
+  Filter,
+  Check,
 } from 'lucide-react';
 
 const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'success' | 'destructive' | 'warning' | 'outline'; color: string }> = {
@@ -45,12 +50,14 @@ const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'success'
   REJECTED: { label: 'বাতিল (Rejected)', variant: 'destructive', color: 'bg-rose-500/10 text-rose-600 border-rose-500/30' },
 };
 
+type ActiveTab = 'PENDING' | 'APPROVED_HISTORY' | 'REJECTED' | 'ALL';
+
 export default function AdminAdmissionsPage() {
   const queryClient = useQueryClient();
   const { success, error: toastError } = useToast();
 
+  const [activeTab, setActiveTab] = useState<ActiveTab>('ALL');
   const [search, setSearch] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedClass, setSelectedClass] = useState('ALL');
 
   // Review Modal State
@@ -107,8 +114,9 @@ export default function AdminAdmissionsPage() {
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin-admissions-list'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-students-list'] });
       const statusLabel = STATUS_MAP[variables.status]?.label || variables.status;
-      success(`আবেদন সফলভাবে ${statusLabel} করা হয়েছে!`);
+      success(`আবেদন সফলভাবে ${statusLabel} করা হয়েছে এবং এনরোল সম্পন্ন হয়েছে!`);
       if (selectedApp?.id === variables.id) {
         setSelectedApp({ ...selectedApp, status: variables.status, notes: variables.notes });
       }
@@ -121,8 +129,23 @@ export default function AdminAdmissionsPage() {
 
   const appsList: any[] = Array.isArray(applications) ? applications : [];
 
-  // Filtered list
+  // Counts for summary metrics
+  const totalCount = appsList.length;
+  const pendingCount = appsList.filter((a) => a.status === 'SUBMITTED' || a.status === 'UNDER_REVIEW' || a.status === 'DOCUMENT_VERIFIED' || a.status === 'EXAM_SCHEDULED').length;
+  const approvedCount = appsList.filter((a) => a.status === 'APPROVED').length;
+  const rejectedCount = appsList.filter((a) => a.status === 'REJECTED').length;
+
+  // Filtered list based on active tab and search filters
   const filteredApps = appsList.filter((app) => {
+    // Tab filtering
+    if (activeTab === 'PENDING') {
+      if (app.status === 'APPROVED' || app.status === 'REJECTED') return false;
+    } else if (activeTab === 'APPROVED_HISTORY') {
+      if (app.status !== 'APPROVED') return false;
+    } else if (activeTab === 'REJECTED') {
+      if (app.status !== 'REJECTED') return false;
+    }
+
     const matchesSearch =
       !search ||
       app.applicationNumber?.toLowerCase().includes(search.toLowerCase()) ||
@@ -130,17 +153,10 @@ export default function AdminAdmissionsPage() {
       app.parentPhone?.includes(search) ||
       app.parentName?.toLowerCase().includes(search.toLowerCase());
 
-    const matchesStatus = selectedStatus === 'ALL' || app.status === selectedStatus;
     const matchesClass = selectedClass === 'ALL' || app.classId === selectedClass || app.class?.name === selectedClass;
 
-    return matchesSearch && matchesStatus && matchesClass;
+    return matchesSearch && matchesClass;
   });
-
-  // Counts for summary metrics
-  const totalCount = appsList.length;
-  const pendingCount = appsList.filter((a) => a.status === 'SUBMITTED' || a.status === 'UNDER_REVIEW').length;
-  const approvedCount = appsList.filter((a) => a.status === 'APPROVED').length;
-  const rejectedCount = appsList.filter((a) => a.status === 'REJECTED').length;
 
   const handleOpenReview = (app: any) => {
     setSelectedApp(app);
@@ -155,91 +171,185 @@ export default function AdminAdmissionsPage() {
     setIsReviewOpen(true);
   };
 
-  const handleQuickStatusChange = (appId: string, newStatus: string) => {
-    updateStatusMutation.mutate({ id: appId, status: newStatus });
+  const handleQuickApprove = (appId: string) => {
+    if (window.confirm('আপনি কি নিশ্চিত যে এই আবেদনটি অনুমোদন করে শিক্ষার্থীকে স্বয়ংক্রিয়ভাবে এনরোল করতে চান?')) {
+      updateStatusMutation.mutate({ id: appId, status: 'APPROVED' });
+    }
+  };
+
+  const handleQuickReject = (appId: string) => {
+    if (window.confirm('আপনি কি নিশ্চিত যে এই ভর্তি আবেদনটি বাতিল করতে চান?')) {
+      updateStatusMutation.mutate({ id: appId, status: 'REJECTED' });
+    }
   };
 
   return (
     <RouteGuard allowedRoles={['SUPER_ADMIN', 'ADMIN', 'PRINCIPAL']}>
       <div className="space-y-6">
         <PageHeader
-          heading="ভর্তি আবেদন ব্যবস্থাপনা (Admissions Pipeline)"
-          subheading="অনলাইনে দাখিলকৃত শিক্ষার্থীদের ভর্তি আবেদন পর্যালোচনা, অনুমোদন বা বাতিলের নিয়ন্ত্রণ প্যানেল"
+          heading="ভর্তি আবেদন ও এনরোলমেন্ট ব্যবস্থাপনা (Admissions Pipeline)"
+          subheading="অনলাইনে দাখিলকৃত আবেদন পর্যালোচনা, অনুমোদন, এনরোলমেন্ট ও অনুমোদিত ভর্তি ইতিহাস"
         />
 
-        {/* Summary Metrics */}
+        {/* Summary Metrics Cards with Instant Tab Filtering */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Card className="p-4 shadow-sm border border-border flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
-              <UserPlus className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-[11px] text-muted-foreground font-medium">মোট আবেদন</p>
-              <h3 className="text-xl font-bold text-foreground">{totalCount}</h3>
-            </div>
-          </Card>
-
-          <Card className="p-4 shadow-sm border border-border flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
-              <Clock className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-[11px] text-muted-foreground font-medium">অপেক্ষমাণ (Pending)</p>
-              <h3 className="text-xl font-bold text-amber-600">{pendingCount}</h3>
-            </div>
-          </Card>
-
-          <Card className="p-4 shadow-sm border border-border flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
-              <CheckCircle2 className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-[11px] text-muted-foreground font-medium">অনুমোদিত (Approved)</p>
-              <h3 className="text-xl font-bold text-emerald-600">{approvedCount}</h3>
+          {/* All */}
+          <Card
+            onClick={() => setActiveTab('ALL')}
+            className={`p-4 shadow-sm border cursor-pointer transition-all ${
+              activeTab === 'ALL'
+                ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                : 'border-border hover:border-primary/40 hover:bg-muted/30'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                <UserPlus className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground font-medium">মোট আবেদন (All)</p>
+                <h3 className="text-xl font-bold text-foreground">{totalCount}</h3>
+              </div>
             </div>
           </Card>
 
-          <Card className="p-4 shadow-sm border border-border flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center font-bold">
-              <XCircle className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-[11px] text-muted-foreground font-medium">বাতিল (Rejected)</p>
-              <h3 className="text-xl font-bold text-rose-600">{rejectedCount}</h3>
+          {/* Pending */}
+          <Card
+            onClick={() => setActiveTab('PENDING')}
+            className={`p-4 shadow-sm border cursor-pointer transition-all ${
+              activeTab === 'PENDING'
+                ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-500/5'
+                : 'border-border hover:border-amber-500/40 hover:bg-muted/30'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                <Clock className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground font-medium">অপেক্ষমাণ (Pending)</p>
+                <h3 className="text-xl font-bold text-amber-600">{pendingCount}</h3>
+              </div>
             </div>
           </Card>
+
+          {/* Approved History */}
+          <Card
+            onClick={() => setActiveTab('APPROVED_HISTORY')}
+            className={`p-4 shadow-sm border cursor-pointer transition-all ${
+              activeTab === 'APPROVED_HISTORY'
+                ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-500/5'
+                : 'border-border hover:border-emerald-500/40 hover:bg-muted/30'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground font-medium">অনুমোদিত ইতিহাস (Approved)</p>
+                <h3 className="text-xl font-bold text-emerald-600">{approvedCount}</h3>
+              </div>
+            </div>
+          </Card>
+
+          {/* Rejected */}
+          <Card
+            onClick={() => setActiveTab('REJECTED')}
+            className={`p-4 shadow-sm border cursor-pointer transition-all ${
+              activeTab === 'REJECTED'
+                ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/5'
+                : 'border-border hover:border-rose-500/40 hover:bg-muted/30'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center font-bold">
+                <XCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground font-medium">বাতিল (Rejected)</p>
+                <h3 className="text-xl font-bold text-rose-600">{rejectedCount}</h3>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Admissions View Tabs Bar */}
+        <div className="flex items-center gap-2 border-b border-border pb-2 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('ALL')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+              activeTab === 'ALL'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            সকল আবেদন ({totalCount})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('PENDING')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+              activeTab === 'PENDING'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            অপেক্ষমাণ আবেদন ({pendingCount})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('APPROVED_HISTORY')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+              activeTab === 'APPROVED_HISTORY'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            <History className="h-3.5 w-3.5" />
+            অনুমোদিত ভর্তি ইতিহাস ({approvedCount})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('REJECTED')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+              activeTab === 'REJECTED'
+                ? 'bg-rose-600 text-white shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            <XCircle className="h-3.5 w-3.5" />
+            বাতিলকৃত তালিকা ({rejectedCount})
+          </button>
         </div>
 
         {/* Filter Controls */}
         <Card className="shadow-sm">
           <CardContent className="p-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="relative sm:col-span-1">
+              <div className="relative sm:col-span-2">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="আবেদন নং, শিক্ষার্থীর নাম বা ফোন..."
+                  placeholder="আবেদন নং, শিক্ষার্থীর নাম বা ফোন নম্বর দিয়ে খুঁজুন..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 text-xs"
                 />
               </div>
 
-              <div>
-                <Select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}>
-                  <option value="ALL">সকল স্ট্যাটাস (All Statuses)</option>
-                  <option value="SUBMITTED">নতুন আবেদন (Pending / Submitted)</option>
-                  <option value="UNDER_REVIEW">যাচাই চলছে (Under Review)</option>
-                  <option value="EXAM_SCHEDULED">পরীক্ষা নির্ধারিত (Exam Scheduled)</option>
-                  <option value="APPROVED">ভর্তি অনুমোদিত (Approved)</option>
-                  <option value="REJECTED">বাতিলকৃত (Rejected)</option>
-                  <option value="WAITLISTED">অপেক্ষমাণ তালিকা (Waitlisted)</option>
-                </Select>
-              </div>
-
-              <div className="flex items-center justify-end">
+              <div className="flex items-center justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => refetch()} className="text-xs">
                   রিফ্রেশ করুন
                 </Button>
+                {activeTab === 'APPROVED_HISTORY' && (
+                  <Link href="/admin/students">
+                    <Button size="sm" className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5">
+                      <GraduationCap className="h-3.5 w-3.5" /> শিক্ষার্থী তালিকা
+                    </Button>
+                  </Link>
+                )}
               </div>
             </div>
           </CardContent>
@@ -249,8 +359,34 @@ export default function AdminAdmissionsPage() {
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
-              <CardTitle className="text-base font-semibold">ভর্তি আবেদন তালিকা (Applications)</CardTitle>
-              <CardDescription>মোট {filteredApps.length} টি আবেদন প্রদর্শন করা হচ্ছে</CardDescription>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                {activeTab === 'APPROVED_HISTORY' ? (
+                  <>
+                    <History className="h-4 w-4 text-emerald-600" />
+                    অনুমোদিত ভর্তি ইতিহাস (Approved Admissions History)
+                  </>
+                ) : activeTab === 'PENDING' ? (
+                  <>
+                    <Clock className="h-4 w-4 text-amber-600" />
+                    অপেক্ষমাণ আবেদনসমূহ (Pending Submissions Queue)
+                  </>
+                ) : activeTab === 'REJECTED' ? (
+                  <>
+                    <XCircle className="h-4 w-4 text-rose-600" />
+                    বাতিলকৃত আবেদন তালিকা (Rejected Applications)
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4 text-primary" />
+                    সকল ভর্তি আবেদন তালিকা (All Applications)
+                  </>
+                )}
+              </CardTitle>
+              <CardDescription>
+                {activeTab === 'APPROVED_HISTORY'
+                  ? `মোট ${filteredApps.length} জন শিক্ষার্থীর ভর্তি অনুমোদন ও এনরোলমেন্ট রেকর্ড পাওয়া গেছে`
+                  : `মোট ${filteredApps.length} টি আবেদন প্রদর্শন করা হচ্ছে`}
+              </CardDescription>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -268,11 +404,23 @@ export default function AdminAdmissionsPage() {
               </div>
             ) : filteredApps.length === 0 ? (
               <div className="p-12 text-center">
-                <UserPlus className="mx-auto h-12 w-12 text-muted-foreground/40 mb-3" />
-                <h4 className="text-sm font-semibold text-foreground">কোনো আবেদন পাওয়া যায়নি</h4>
-                <p className="text-xs text-muted-foreground mt-1">
-                  এখনো কোনো শিক্ষার্থী এই ফিল্টারের অধীনে অনলাইনে আবেদন জমা দেয়নি।
-                </p>
+                {activeTab === 'APPROVED_HISTORY' ? (
+                  <>
+                    <History className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+                    <h4 className="text-sm font-semibold text-foreground">কোনো অনুমোদিত ভর্তি রেকর্ড নেই</h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      অপেক্ষমাণ আবেদন পর্যালোচনা করে অনুমোদন দিলে সেগুলো স্বয়ংক্রিয়ভাবে এখানে ইতিহাস হিসেবে যুক্ত হবে।
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+                    <h4 className="text-sm font-semibold text-foreground">কোনো আবেদন পাওয়া যায়নি</h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      এই ক্যাটাগরিতে বর্তমানে কোনো আবেদন নেই।
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -283,7 +431,7 @@ export default function AdminAdmissionsPage() {
                       <TableHead>শিক্ষার্থীর নাম ও ছবি</TableHead>
                       <TableHead>অভিভাবকের নাম ও ফোন</TableHead>
                       <TableHead>ভর্তির শ্রেণী</TableHead>
-                      <TableHead>তারিখ</TableHead>
+                      <TableHead>আবেদনের তারিখ</TableHead>
                       <TableHead>বর্তমান স্ট্যাটাস</TableHead>
                       <TableHead className="text-right">অ্যাকশন</TableHead>
                     </TableRow>
@@ -292,9 +440,15 @@ export default function AdminAdmissionsPage() {
                     {filteredApps.map((app) => {
                       const photoDoc = app.documents?.find((d: any) => d.documentType === 'PASSPORT_PHOTO');
                       const statusInfo = STATUS_MAP[app.status] || { label: app.status, variant: 'outline', color: '' };
+                      const isApproved = app.status === 'APPROVED';
 
                       return (
-                        <TableRow key={app.id} className="hover:bg-muted/40 transition-colors">
+                        <TableRow
+                          key={app.id}
+                          className={`transition-colors ${
+                            isApproved ? 'bg-emerald-500/5 hover:bg-emerald-500/10' : 'hover:bg-muted/40'
+                          }`}
+                        >
                           <TableCell className="font-mono font-bold text-primary">
                             {app.applicationNumber}
                           </TableCell>
@@ -313,8 +467,11 @@ export default function AdminAdmissionsPage() {
                                 </div>
                               )}
                               <div>
-                                <p className="font-semibold text-foreground">
+                                <p className="font-semibold text-foreground flex items-center gap-1.5">
                                   {app.firstName} {app.lastName}
+                                  {isApproved && (
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" title="Enrolled" />
+                                  )}
                                 </p>
                                 <p className="text-[10px] text-muted-foreground">{app.gender}</p>
                               </div>
@@ -337,8 +494,8 @@ export default function AdminAdmissionsPage() {
                           </TableCell>
 
                           <TableCell>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusInfo.color}`}>
-                              {statusInfo.label}
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${statusInfo.color}`}>
+                              {isApproved ? '✅ অনুমোদিত ও এনরোল্ড' : statusInfo.label}
                             </span>
                           </TableCell>
 
@@ -353,30 +510,44 @@ export default function AdminAdmissionsPage() {
                                 <Eye className="h-3.5 w-3.5" /> পর্যালোচনা
                               </Button>
 
-                              {app.status !== 'APPROVED' && (
-                                <Button
-                                  size="sm"
-                                  variant="default"
-                                  className="h-7 px-2 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white"
-                                  title="Approve Admission"
-                                  onClick={() => handleQuickStatusChange(app.id, 'APPROVED')}
-                                  disabled={updateStatusMutation.isPending}
-                                >
-                                  <CheckCircle2 className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
+                              {/* If already approved, show View Student Link instead of re-approve */}
+                              {isApproved ? (
+                                <Link href="/admin/students">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-[11px] text-emerald-600 border-emerald-500/40 hover:bg-emerald-50 gap-1 font-semibold"
+                                    title="View Student in Directory"
+                                  >
+                                    <GraduationCap className="h-3.5 w-3.5" /> শিক্ষার্থী
+                                  </Button>
+                                </Link>
+                              ) : (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    className="h-7 px-2.5 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1"
+                                    title="Approve Admission & Auto Enroll"
+                                    onClick={() => handleQuickApprove(app.id)}
+                                    disabled={updateStatusMutation.isPending}
+                                  >
+                                    <Check className="h-3.5 w-3.5" /> অনুমোদন
+                                  </Button>
 
-                              {app.status !== 'REJECTED' && (
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  className="h-7 px-2 text-[11px]"
-                                  title="Reject Application"
-                                  onClick={() => handleQuickStatusChange(app.id, 'REJECTED')}
-                                  disabled={updateStatusMutation.isPending}
-                                >
-                                  <XCircle className="h-3.5 w-3.5" />
-                                </Button>
+                                  {app.status !== 'REJECTED' && (
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      className="h-7 px-2 text-[11px]"
+                                      title="Reject Application"
+                                      onClick={() => handleQuickReject(app.id)}
+                                      disabled={updateStatusMutation.isPending}
+                                    >
+                                      <XCircle className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                </>
                               )}
                             </div>
                           </TableCell>
@@ -395,28 +566,48 @@ export default function AdminAdmissionsPage() {
           <DialogContent onClose={() => setIsReviewOpen(false)} className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center justify-between">
-                <span>আবেদন পর্যালোচনা (Application Review)</span>
+                <span>আবেদন পর্যালোচনা ও এনরোলমেন্ট (Application Review)</span>
                 <span className="font-mono text-sm text-primary font-bold">{selectedApp?.applicationNumber}</span>
               </DialogTitle>
               <DialogDescription>
-                শিক্ষার্থীর সকল তথ্যাবলী ও আপলোডকৃত ডকুমেন্ট যাচাই করুন।
+                শিক্ষার্থীর সকল তথ্যাবলী, পেমেন্ট স্লিপ ও আপলোডকৃত ডকুমেন্ট যাচাই করুন।
               </DialogDescription>
             </DialogHeader>
 
             {selectedApp && (
               <div className="space-y-4 text-xs">
                 {/* Status Bar */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border">
+                <div className={`flex items-center justify-between p-3 rounded-xl border ${
+                  selectedApp.status === 'APPROVED' ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-muted/40'
+                }`}>
                   <div>
                     <span className="text-muted-foreground">বর্তমান স্ট্যাটাস: </span>
                     <span className="font-bold text-foreground">
-                      {STATUS_MAP[selectedApp.status]?.label || selectedApp.status}
+                      {selectedApp.status === 'APPROVED' ? '✅ অনুমোদিত ও এনরোল্ড শিক্ষার্থী (Approved)' : STATUS_MAP[selectedApp.status]?.label || selectedApp.status}
                     </span>
                   </div>
                   <span className="text-[11px] text-muted-foreground font-mono">
                     আবেদনের তারিখ: {new Date(selectedApp.createdAt).toLocaleDateString('bn-BD')}
                   </span>
                 </div>
+
+                {/* Approved Success Notice if already approved */}
+                {selectedApp.status === 'APPROVED' && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-600" />
+                      <div>
+                        <p className="font-bold">এই আবেদনটি অনুমোদিত হয়েছে!</p>
+                        <p className="text-[11px] opacity-80">শিক্ষার্থী অ্যাকাউন্টে স্বয়ংক্রিয়ভাবে ক্লাস রোল ও সেকশন নির্ধারণ সম্পন্ন হয়েছে।</p>
+                      </div>
+                    </div>
+                    <Link href="/admin/students">
+                      <Button size="sm" variant="outline" className="text-xs bg-card border-emerald-500/40 text-emerald-600 hover:bg-emerald-50">
+                        শিক্ষার্থী প্রোফাইল দেখুন
+                      </Button>
+                    </Link>
+                  </div>
+                )}
 
                 {/* Student Info */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl border bg-card">
@@ -611,7 +802,7 @@ export default function AdminAdmissionsPage() {
                       }
                       disabled={updateStatusMutation.isPending}
                     >
-                      <CheckCircle2 className="h-4 w-4" /> Approve
+                      <CheckCircle2 className="h-4 w-4" /> {selectedApp.status === 'APPROVED' ? 'এনরোলমেন্ট আপডেট করুন' : 'Approve & Enroll'}
                     </Button>
 
                     <Button
@@ -647,21 +838,23 @@ export default function AdminAdmissionsPage() {
                       <Clock className="h-4 w-4" /> যাচাইকরণে রাখুন (Under Review)
                     </Button>
 
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="font-semibold gap-1"
-                      onClick={() =>
-                        updateStatusMutation.mutate({
-                          id: selectedApp.id,
-                          status: 'REJECTED',
-                          notes: reviewNotes,
-                        })
-                      }
-                      disabled={updateStatusMutation.isPending}
-                    >
-                      <XCircle className="h-4 w-4" /> আবেদন বাতিল করুন (Reject)
-                    </Button>
+                    {selectedApp.status !== 'REJECTED' && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="font-semibold gap-1"
+                        onClick={() =>
+                          updateStatusMutation.mutate({
+                            id: selectedApp.id,
+                            status: 'REJECTED',
+                            notes: reviewNotes,
+                          })
+                        }
+                        disabled={updateStatusMutation.isPending}
+                      >
+                        <XCircle className="h-4 w-4" /> আবেদন বাতিল করুন (Reject)
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
